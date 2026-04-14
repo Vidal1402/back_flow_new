@@ -46,3 +46,15 @@ Obs.: esta API usa Supabase como banco Postgres (PDO), com JWT proprio no backen
 - `src/Repositories` acesso a dados.
 - `src/Middleware` proteção de rotas.
 - `database/migrations` schema SQL versionado.
+
+## Deploy no Railway (Railpack)
+
+O Railpack **nao oferece PHP 8.1** — use `composer.json` com `"php": "^8.2"` ou superior.
+
+No painel do servico Railway, defina a variavel de ambiente:
+
+- `RAILPACK_PHP_ROOT_DIR=/app/public`
+
+Isso aponta o document root para a pasta `public/` (onde esta o `index.php`). Sem isso, o servidor pode nao achar o front controller.
+
+Configure tambem `APP_KEY`, `JWT_TTL`, `DB_DSN`, `DB_USER`, `DB_PASS` nas variaveis do Railway.

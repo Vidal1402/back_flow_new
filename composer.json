@@ -3,7 +3,9 @@
   "description": "MVP backend em PHP para United Flow",
   "type": "project",
   "require": {
-    "php": "^8.1"
+    "php": "^8.2",
+    "ext-pdo": "*",
+    "ext-pgsql": "*"
   },
   "autoload": {
     "psr-4": {
