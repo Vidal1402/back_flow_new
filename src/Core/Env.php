@@ -49,6 +49,17 @@ final class Env
 
     public static function get(string $key, ?string $default = null): ?string
     {
-        return $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key) ?: $default;
+        if (array_key_exists($key, $_ENV) && $_ENV[$key] !== null) {
+            return (string) $_ENV[$key];
+        }
+        if (array_key_exists($key, $_SERVER)) {
+            return (string) $_SERVER[$key];
+        }
+        $fromEnv = getenv($key);
+        if ($fromEnv !== false) {
+            return (string) $fromEnv;
+        }
+
+        return $default;
     }
 }
