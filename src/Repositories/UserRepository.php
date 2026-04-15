@@ -72,6 +72,30 @@ final class UserRepository
         return $id;
     }
 
+    public function ensureAdminCredentials(string $email, string $name, string $passwordHash, int $organizationId = 1): int
+    {
+        $normalizedEmail = mb_strtolower(trim($email));
+        $existing = $this->findByEmail($normalizedEmail);
+        if ($existing === null) {
+            return $this->create($name, $normalizedEmail, $passwordHash, 'admin', $organizationId);
+        }
+
+        $this->db->selectCollection('users')->updateOne(
+            ['_id' => (int) $existing['id']],
+            [
+                '$set' => [
+                    'name' => $name,
+                    'email' => $normalizedEmail,
+                    'password_hash' => $passwordHash,
+                    'role' => 'admin',
+                    'organization_id' => $organizationId,
+                ],
+            ]
+        );
+
+        return (int) $existing['id'];
+    }
+
     /**
      * @param array<string, mixed> $doc
      * @return array<string, mixed>
