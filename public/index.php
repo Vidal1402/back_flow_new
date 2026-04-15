@@ -33,6 +33,9 @@ if ($method === 'OPTIONS') {
     exit;
 }
 
+// Envia CORS o mais cedo possível também para GET/POST, antes do bootstrap (evita resposta 200 sem cabeçalho).
+Response::applyCors();
+
 $request = Request::capture();
 $path = rtrim($request->path, '/') ?: '/';
 

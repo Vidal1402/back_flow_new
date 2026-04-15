@@ -20,7 +20,7 @@ final class Response
                 static fn (string $o): bool => $o !== ''
             )
         );
-        $origin = isset($_SERVER['HTTP_ORIGIN']) ? trim((string) $_SERVER['HTTP_ORIGIN']) : '';
+        $origin = self::requestOrigin();
 
         if ($allowed === []) {
             header('Access-Control-Allow-Origin: *');
@@ -48,10 +48,30 @@ final class Response
         return false;
     }
 
+    private static function requestOrigin(): string
+    {
+        if (!empty($_SERVER['HTTP_ORIGIN'])) {
+            return trim((string) $_SERVER['HTTP_ORIGIN']);
+        }
+
+        if (function_exists('getallheaders')) {
+            $headers = getallheaders();
+            if (is_array($headers)) {
+                foreach ($headers as $name => $value) {
+                    if (strcasecmp((string) $name, 'Origin') === 0) {
+                        return trim((string) $value);
+                    }
+                }
+            }
+        }
+
+        return '';
+    }
+
     public static function json(array $data, int $status = 200): void
     {
-        http_response_code($status);
         self::applyCors();
+        http_response_code($status);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
