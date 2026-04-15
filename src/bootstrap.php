@@ -62,17 +62,26 @@ if ($bootstrapAdminEmail !== '' && $bootstrapAdminPassword !== '' && $forceReset
             1
         );
     } else {
-        $db->selectCollection('users')->updateOne(
-            ['_id' => (int) $existingAdmin['id']],
-            [
-                '$set' => [
-                    'name' => $bootstrapAdminName !== '' ? $bootstrapAdminName : 'Administrador',
-                    'password_hash' => password_hash($bootstrapAdminPassword, PASSWORD_BCRYPT),
-                    'role' => 'admin',
-                    'organization_id' => 1,
-                ],
-            ]
-        );
+        $nameTarget = $bootstrapAdminName !== '' ? $bootstrapAdminName : 'Administrador';
+        $roleCurrent = (string) ($existingAdmin['role'] ?? '');
+        $orgCurrent = (int) ($existingAdmin['organization_id'] ?? 0);
+        $hashCurrent = (string) ($existingAdmin['password_hash'] ?? '');
+        $passwordAlreadyValid = $hashCurrent !== '' && password_verify($bootstrapAdminPassword, $hashCurrent);
+        $nameCurrent = (string) ($existingAdmin['name'] ?? '');
+
+        if (!$passwordAlreadyValid || $roleCurrent !== 'admin' || $orgCurrent !== 1 || $nameCurrent !== $nameTarget) {
+            $db->selectCollection('users')->updateOne(
+                ['_id' => (int) $existingAdmin['id']],
+                [
+                    '$set' => [
+                        'name' => $nameTarget,
+                        'password_hash' => password_hash($bootstrapAdminPassword, PASSWORD_BCRYPT),
+                        'role' => 'admin',
+                        'organization_id' => 1,
+                    ],
+                ]
+            );
+        }
     }
 }
 

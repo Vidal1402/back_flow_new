@@ -20,12 +20,16 @@ final class UserRepository
     public function findByEmail(string $email): ?array
     {
         $normalizedEmail = mb_strtolower(trim($email));
-        $doc = $this->db->selectCollection('users')->findOne([
-            'email' => [
-                '$regex' => '^' . preg_quote($normalizedEmail, '/') . '$',
-                '$options' => 'i',
-            ],
-        ]);
+        $doc = $this->db->selectCollection('users')->findOne(['email' => $normalizedEmail]);
+        if ($doc === null) {
+            // Fallback para registros legados com caixa diferente.
+            $doc = $this->db->selectCollection('users')->findOne([
+                'email' => [
+                    '$regex' => '^' . preg_quote($normalizedEmail, '/') . '$',
+                    '$options' => 'i',
+                ],
+            ]);
+        }
         if ($doc === null) {
             return null;
         }
