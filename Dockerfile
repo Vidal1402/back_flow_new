@@ -1,10 +1,12 @@
 # Imagem mínima para Railway: escuta sempre em 0.0.0.0:$PORT (sem Caddy/FrankenPHP).
 # Evita 502 por desalinhamento SERVER_NAME vs PORT do Railpack.
 
+# A imagem composer:2 não tem ext-mongodb; a extensão instala-se no stage seguinte.
 FROM composer:2 AS vendor
 WORKDIR /app
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts \
+    --ignore-platform-req=ext-mongodb
 
 FROM php:8.4-cli-bookworm
 
