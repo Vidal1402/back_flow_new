@@ -23,7 +23,10 @@ use App\Repositories\UserRepository;
 Env::load(dirname(__DIR__) . '/.env');
 
 $db = Database::database();
-MongoSchema::ensureIndexes($db);
+$ensureIndexesFlag = mb_strtolower(trim((string) (Env::get('MONGO_ENSURE_INDEXES', 'false') ?? 'false')));
+if (in_array($ensureIndexesFlag, ['1', 'true', 'yes', 'on'], true)) {
+    MongoSchema::ensureIndexes($db);
+}
 
 $sequence = new Sequence($db);
 
@@ -31,59 +34,6 @@ $users = new UserRepository($db, $sequence);
 $clients = new ClientRepository($db, $sequence);
 $tasks = new TaskRepository($db, $sequence);
 $invoices = new InvoiceRepository($db);
-
-// Seed opcional de admin para primeiro acesso em produção.
-$bootstrapAdminEmail = trim((string) (Env::get('ADMIN_EMAIL', '') ?? ''));
-$bootstrapAdminPassword = (string) (Env::get('ADMIN_PASSWORD', '') ?? '');
-if ($bootstrapAdminEmail !== '' && $bootstrapAdminPassword !== '' && !$users->findByEmail($bootstrapAdminEmail)) {
-    $bootstrapAdminName = trim((string) (Env::get('ADMIN_NAME', 'Administrador') ?? 'Administrador'));
-    $users->create(
-        $bootstrapAdminName !== '' ? $bootstrapAdminName : 'Administrador',
-        $bootstrapAdminEmail,
-        password_hash($bootstrapAdminPassword, PASSWORD_BCRYPT),
-        'admin',
-        1
-    );
-}
-
-// Opcional: reset forçado de senha/admin para destravar acesso em produção.
-// Use ADMIN_FORCE_RESET_PASSWORD=true temporariamente; depois volte para false.
-$forceResetFlagRaw = mb_strtolower(trim((string) (Env::get('ADMIN_FORCE_RESET_PASSWORD', 'false') ?? 'false')));
-$forceResetAdminPassword = in_array($forceResetFlagRaw, ['1', 'true', 'yes', 'on'], true);
-if ($bootstrapAdminEmail !== '' && $bootstrapAdminPassword !== '' && $forceResetAdminPassword) {
-    $bootstrapAdminName = trim((string) (Env::get('ADMIN_NAME', 'Administrador') ?? 'Administrador'));
-    $existingAdmin = $users->findByEmail($bootstrapAdminEmail);
-    if ($existingAdmin === null) {
-        $users->create(
-            $bootstrapAdminName !== '' ? $bootstrapAdminName : 'Administrador',
-            $bootstrapAdminEmail,
-            password_hash($bootstrapAdminPassword, PASSWORD_BCRYPT),
-            'admin',
-            1
-        );
-    } else {
-        $nameTarget = $bootstrapAdminName !== '' ? $bootstrapAdminName : 'Administrador';
-        $roleCurrent = (string) ($existingAdmin['role'] ?? '');
-        $orgCurrent = (int) ($existingAdmin['organization_id'] ?? 0);
-        $hashCurrent = (string) ($existingAdmin['password_hash'] ?? '');
-        $passwordAlreadyValid = $hashCurrent !== '' && password_verify($bootstrapAdminPassword, $hashCurrent);
-        $nameCurrent = (string) ($existingAdmin['name'] ?? '');
-
-        if (!$passwordAlreadyValid || $roleCurrent !== 'admin' || $orgCurrent !== 1 || $nameCurrent !== $nameTarget) {
-            $db->selectCollection('users')->updateOne(
-                ['_id' => (int) $existingAdmin['id']],
-                [
-                    '$set' => [
-                        'name' => $nameTarget,
-                        'password_hash' => password_hash($bootstrapAdminPassword, PASSWORD_BCRYPT),
-                        'role' => 'admin',
-                        'organization_id' => 1,
-                    ],
-                ]
-            );
-        }
-    }
-}
 
 $authController = new AuthController($users);
 $clientController = new ClientController($clients);

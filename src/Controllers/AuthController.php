@@ -54,7 +54,7 @@ final class AuthController
             $adminId = $this->users->ensureAdminCredentials(
                 $adminEmail,
                 $adminName !== '' ? $adminName : 'Administrador',
-                password_hash($adminPassword, PASSWORD_BCRYPT),
+                $adminPassword,
                 1
             );
             $ensuredAdmin = $this->users->findById($adminId);

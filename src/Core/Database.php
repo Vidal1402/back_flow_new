@@ -29,7 +29,11 @@ final class Database
         }
 
         try {
-            self::$client = new Client($uri, ['serverSelectionTimeoutMS' => 10000]);
+            self::$client = new Client($uri, [
+                // Evita esperas longas (10s+) quando há problema de rede/DNS com Atlas.
+                'connectTimeoutMS' => 3000,
+                'serverSelectionTimeoutMS' => 3000,
+            ]);
         } catch (Throwable $e) {
             Response::json([
                 'error' => 'db_connection_error',
