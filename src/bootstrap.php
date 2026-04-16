@@ -21,7 +21,19 @@ use App\Repositories\UserRepository;
 
 Env::load(dirname(__DIR__) . '/.env');
 
-$pdo = Database::connection();
+if (method_exists(Database::class, 'connection')) {
+    /** @var \PDO $pdo */
+    $pdo = Database::connection();
+} elseif (method_exists(Database::class, 'getConnection')) {
+    /** @var \PDO $pdo */
+    $pdo = Database::getConnection();
+} else {
+    Response::json([
+        'error' => 'server_error',
+        'message' => 'Classe Database sem método de conexão compatível.',
+    ], 500);
+}
+
 Migrator::run($pdo, dirname(__DIR__) . '/database/migrations');
 
 $users = new UserRepository($pdo);

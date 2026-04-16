@@ -48,5 +48,13 @@ if ($request->method === 'GET' && in_array($path, ['/', '/api/health', '/health'
     ]);
 }
 
-$router = require __DIR__ . '/../src/bootstrap.php';
-$router->dispatch($request);
+try {
+    $router = require __DIR__ . '/../src/bootstrap.php';
+    $router->dispatch($request);
+} catch (\Throwable $e) {
+    Response::json([
+        'error' => 'server_error',
+        'message' => 'Erro interno no servidor.',
+        'details' => Env::get('APP_ENV', 'production') === 'local' ? $e->getMessage() : null,
+    ], 500);
+}
