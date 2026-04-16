@@ -49,12 +49,18 @@ register_shutdown_function(static function () use ($showDebugDetails): void {
     if (!class_exists(Response::class)) {
         return;
     }
+
+    // Em /api/diagnostic, sempre mostre detalhes (para depurar rapidamente no Railway).
+    $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+    $path = parse_url($uri, PHP_URL_PATH);
+    $forceDetails = is_string($path) && $path === '/api/diagnostic';
+
     Response::json([
         'error' => 'fatal_error',
         'message' => 'Erro fatal no servidor (PHP).',
-        'details' => $showDebugDetails ? ($e['message'] ?? '') : null,
-        'file' => $showDebugDetails ? ($e['file'] ?? null) : null,
-        'line' => $showDebugDetails ? (int) ($e['line'] ?? 0) : null,
+        'details' => ($showDebugDetails || $forceDetails) ? ($e['message'] ?? '') : null,
+        'file' => ($showDebugDetails || $forceDetails) ? ($e['file'] ?? null) : null,
+        'line' => ($showDebugDetails || $forceDetails) ? (int) ($e['line'] ?? 0) : null,
     ], 500);
 });
 
