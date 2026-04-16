@@ -19,6 +19,8 @@ Backend em PHP nativo com:
 
 `MONGODB_URI=mongodb+srv://usuario:senha@cluster0.xxxxx.mongodb.net/united_flow?retryWrites=true&w=majority`
 
+Obs.: este projeto usa a extensao `ext-mongodb` (PECL) + a biblioteca `mongodb/mongodb` via Composer. Se houver erro fatal de assinatura `bsonSerialize`, atualize `mongodb/mongodb` para `^2.0` para ficar compativel com `ext-mongodb` 2.x.
+
 `MONGODB_DATABASE=united_flow`
 
 `APP_KEY=troque-esta-chave-por-uma-chave-segura`
