@@ -91,6 +91,22 @@ if ($request->method === 'GET' && $path === '/api/diagnostic') {
     Response::json($out, $code);
 }
 
+// Debug rápido para confirmar se Authorization chega até o PHP (sem bootstrap).
+if ($request->method === 'GET' && $path === '/api/echo-auth') {
+    $auth =
+        $request->header('Authorization') ??
+        (is_string($_SERVER['HTTP_AUTHORIZATION'] ?? null) ? (string) $_SERVER['HTTP_AUTHORIZATION'] : null) ??
+        (is_string($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null) ? (string) $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] : null);
+    $auth = is_string($auth) ? trim($auth) : null;
+    $hasBearer = is_string($auth) && str_starts_with($auth, 'Bearer ');
+    Response::json([
+        'ok' => true,
+        'has_authorization' => $auth !== null && $auth !== '',
+        'has_bearer' => $hasBearer,
+        'authorization_prefix' => is_string($auth) ? substr($auth, 0, 20) : null,
+    ]);
+}
+
 try {
     $router = require __DIR__ . '/../src/bootstrap.php';
     $router->dispatch($request);
