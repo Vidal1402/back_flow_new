@@ -49,6 +49,14 @@ final class AuthController
             Response::json(['error' => 'unauthorized', 'message' => 'Credenciais inválidas'], 401);
         }
 
+        $appKey = trim((string) Env::get('APP_KEY', ''));
+        if ($appKey === '') {
+            Response::json([
+                'error' => 'server_error',
+                'message' => 'APP_KEY não configurada no servidor (Railway / .env).',
+            ], 500);
+        }
+
         $ttl = (int) (Env::get('JWT_TTL', '3600') ?? '3600');
         $payload = [
             'sub' => (int) $user['id'],
@@ -58,7 +66,7 @@ final class AuthController
             'exp' => time() + $ttl,
         ];
 
-        $token = JWT::encode($payload, (string) Env::get('APP_KEY', ''));
+        $token = JWT::encode($payload, $appKey);
 
         Response::json([
             'token' => $token,
