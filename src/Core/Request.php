@@ -65,7 +65,8 @@ final class Request
     {
         if (function_exists('getallheaders')) {
             $headers = getallheaders();
-            return is_array($headers) ? $headers : [];
+            $headers = is_array($headers) ? $headers : [];
+            return self::ensureAuthorizationHeader($headers);
         }
 
         $headers = [];
@@ -75,6 +76,28 @@ final class Request
                 $headers[ucwords($key, '-')] = (string) $value;
             }
         }
+        return self::ensureAuthorizationHeader($headers);
+    }
+
+    private static function ensureAuthorizationHeader(array $headers): array
+    {
+        foreach ($headers as $name => $_) {
+            if (strcasecmp((string) $name, 'Authorization') === 0) {
+                return $headers;
+            }
+        }
+
+        $candidates = [
+            $_SERVER['HTTP_AUTHORIZATION'] ?? null,
+            $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null,
+        ];
+        foreach ($candidates as $value) {
+            if (is_string($value) && trim($value) !== '') {
+                $headers['Authorization'] = trim($value);
+                break;
+            }
+        }
+
         return $headers;
     }
 }
