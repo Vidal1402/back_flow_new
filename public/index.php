@@ -78,6 +78,13 @@ if ($request->method === 'GET' && in_array($path, ['/', '/api/health', '/health'
     ]);
 }
 
+// Diagnóstico Mongo **sem** carregar o bootstrap completo (índices, seed, rotas).
+if ($request->method === 'GET' && $path === '/api/diagnostic') {
+    $out = \App\Core\MongoConnection::diagnosticPing();
+    $code = !empty($out['ok']) ? 200 : 503;
+    Response::json($out, $code);
+}
+
 try {
     $router = require __DIR__ . '/../src/bootstrap.php';
     $router->dispatch($request);

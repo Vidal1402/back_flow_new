@@ -27,6 +27,7 @@ Backend em PHP nativo com:
 
 ## Endpoints principais
 
+- `GET /api/diagnostic` — testa só Mongo + extensão (sem bootstrap pesado). Use quando o login der 500.
 - `GET /api/health`
 - `POST /api/auth/login`
 - `GET /api/auth/me` (JWT)

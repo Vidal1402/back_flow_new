@@ -6,6 +6,8 @@ namespace App\Core;
 
 use MongoDB\Client;
 use MongoDB\Database as MongoDatabase;
+use RuntimeException;
+use Throwable;
 
 final class MongoConnection
 {
@@ -28,25 +30,20 @@ final class MongoConnection
         return $uri . $sep . 'retryWrites=true&w=majority';
     }
 
-    public static function database(): MongoDatabase
+    /**
+     * Conecta e faz ping. Em falha, lança exceção (útil para /api/diagnostic).
+     *
+     * @throws Throwable
+     */
+    private static function connect(): MongoDatabase
     {
-        if (self::$db !== null) {
-            return self::$db;
-        }
-
         if (!class_exists(Client::class)) {
-            Response::json([
-                'error' => 'server_error',
-                'message' => 'Biblioteca mongodb/mongodb não instalada. Rode composer install.',
-            ], 500);
+            throw new RuntimeException('Biblioteca mongodb/mongodb não instalada. Rode composer install no build.');
         }
 
         $rawUri = trim((string) (Env::get('MONGODB_URI') ?? Env::get('MONGO_URL') ?? ''));
         if ($rawUri === '') {
-            Response::json([
-                'error' => 'db_config_error',
-                'message' => 'MONGODB_URI não configurado no ambiente.',
-            ], 500);
+            throw new RuntimeException('MONGODB_URI não configurado no ambiente.');
         }
 
         $uri = self::normalizeUri($rawUri);
@@ -58,12 +55,24 @@ final class MongoConnection
             $dbName = $parsed !== '' ? $parsed : 'united_flow';
         }
 
+        $client = new Client($uri);
+        $database = $client->selectDatabase($dbName);
+        $database->command(['ping' => 1]);
+
+        self::$db = $database;
+
+        return self::$db;
+    }
+
+    public static function database(): MongoDatabase
+    {
+        if (self::$db !== null) {
+            return self::$db;
+        }
+
         try {
-            $client = new Client($uri);
-            self::$db = $client->selectDatabase($dbName);
-            // Força conexão real; falhas de IP rede / auth aparecem aqui com mensagem clara.
-            self::$db->command(['ping' => 1]);
-        } catch (\Throwable $e) {
+            return self::connect();
+        } catch (Throwable $e) {
             $hint = '';
             $msg = $e->getMessage();
             if (stripos($msg, 'No suitable servers') !== false || stripos($msg, 'connection') !== false) {
@@ -74,7 +83,49 @@ final class MongoConnection
                 'message' => $msg . $hint,
             ], 500);
         }
+    }
 
-        return self::$db;
+    /**
+     * Diagnóstico sem encerrar o processo — para GET /api/diagnostic.
+     *
+     * @return array<string, mixed>
+     */
+    public static function diagnosticPing(): array
+    {
+        try {
+            if (self::$db === null) {
+                self::connect();
+            } else {
+                self::$db->command(['ping' => 1]);
+            }
+
+            $dbName = trim((string) (Env::get('MONGODB_DATABASE') ?? ''));
+            if ($dbName === '') {
+                $rawUri = trim((string) (Env::get('MONGODB_URI') ?? Env::get('MONGO_URL') ?? ''));
+                $parsed = parse_url($rawUri, PHP_URL_PATH);
+                $parsed = is_string($parsed) ? trim($parsed, '/') : '';
+                $dbName = $parsed !== '' ? $parsed : 'united_flow';
+            }
+
+            return [
+                'ok' => true,
+                'mongodb' => 'connected',
+                'database' => $dbName,
+                'ext_mongodb' => extension_loaded('mongodb') ? 'yes' : 'no',
+            ];
+        } catch (Throwable $e) {
+            $hint = 'Atlas → Network Access: libere 0.0.0.0/0 ou o IP de saída do Railway.';
+            $msg = $e->getMessage();
+            if (stripos($msg, 'No suitable servers') !== false || stripos($msg, 'connection') !== false) {
+                $msg .= ' (' . $hint . ')';
+            }
+
+            return [
+                'ok' => false,
+                'mongodb' => 'error',
+                'message' => $msg,
+                'ext_mongodb' => extension_loaded('mongodb') ? 'yes' : 'no',
+            ];
+        }
     }
 }
