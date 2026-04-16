@@ -27,11 +27,29 @@ if (method_exists(Database::class, 'connection')) {
 } elseif (method_exists(Database::class, 'getConnection')) {
     /** @var \PDO $pdo */
     $pdo = Database::getConnection();
+} elseif (method_exists(Database::class, 'connect')) {
+    /** @var \PDO $pdo */
+    $pdo = Database::connect();
+} elseif (method_exists(Database::class, 'pdo')) {
+    /** @var \PDO $pdo */
+    $pdo = Database::pdo();
 } else {
-    Response::json([
-        'error' => 'server_error',
-        'message' => 'Classe Database sem método de conexão compatível.',
-    ], 500);
+    // Fallback para manter compatibilidade com versões antigas/alternativas da classe Database.
+    $dsn = Env::get('DB_DSN', 'pgsql:host=localhost;port=5432;dbname=postgres');
+    $user = Env::get('DB_USER', '') ?: null;
+    $pass = Env::get('DB_PASS', '') ?: null;
+
+    try {
+        $pdo = new \PDO((string) $dsn, $user, $pass, [
+            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+        ]);
+    } catch (\PDOException $e) {
+        Response::json([
+            'error' => 'db_connection_error',
+            'message' => $e->getMessage(),
+        ], 500);
+    }
 }
 
 Migrator::run($pdo, dirname(__DIR__) . '/database/migrations');
