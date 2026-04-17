@@ -6,74 +6,52 @@ namespace App\Repositories;
 
 use App\Core\BsonUtil;
 use App\Core\Sequence;
+use MongoDB\BSON\Binary;
 use MongoDB\BSON\UTCDateTime;
 use MongoDB\Database as MongoDatabase;
 
 final class ClientReportRepository
 {
+    /** Tamanho máximo por arquivo (bytes), após decode base64. */
+    public const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+
+    /** Quantidade máxima de arquivos por relatório. */
+    public const MAX_ATTACHMENTS = 10;
+
+    /** Tamanho total máximo dos binários em um documento (margem ao limite 16MB do BSON). */
+    public const MAX_TOTAL_ATTACHMENT_BYTES = 14 * 1024 * 1024;
+
     public function __construct(
         private readonly MongoDatabase $db,
         private readonly Sequence $sequence
     ) {
     }
 
-    public function allByOrganization(int $organizationId, int $limit = 200): array
+    public function allByOrganization(int $organizationId): array
     {
-        $safeLimit = max(1, min($limit, 500));
         $cursor = $this->db->selectCollection('client_reports')->find(
             ['organization_id' => $organizationId],
-            [
-                'sort' => ['created_at' => -1],
-                'limit' => $safeLimit,
-                'projection' => [
-                    'id' => 1,
-                    'organization_id' => 1,
-                    'client_id' => 1,
-                    'title' => 1,
-                    'url' => 1,
-                    'summary' => 1,
-                    'status' => 1,
-                    'published_at' => 1,
-                    'created_at' => 1,
-                    'updated_at' => 1,
-                ],
-            ]
+            ['sort' => ['created_at' => -1]]
         );
 
         $items = [];
         foreach ($cursor as $doc) {
-            $items[] = $this->mapRow($doc->getArrayCopy());
+            $items[] = $this->mapRow($doc->getArrayCopy(), false);
         }
 
         return $items;
     }
 
-    public function allByOrganizationAndClient(int $organizationId, int $clientId, int $limit = 200): array
+    public function allByOrganizationAndClient(int $organizationId, int $clientId): array
     {
-        $safeLimit = max(1, min($limit, 500));
         $cursor = $this->db->selectCollection('client_reports')->find(
             ['organization_id' => $organizationId, 'client_id' => $clientId],
-            [
-                'sort' => ['created_at' => -1],
-                'limit' => $safeLimit,
-                'projection' => [
-                    'id' => 1,
-                    'organization_id' => 1,
-                    'client_id' => 1,
-                    'title' => 1,
-                    'url' => 1,
-                    'summary' => 1,
-                    'status' => 1,
-                    'published_at' => 1,
-                    'created_at' => 1,
-                    'updated_at' => 1,
-                ],
-            ]
+            ['sort' => ['created_at' => -1]]
         );
 
         $items = [];
         foreach ($cursor as $doc) {
-            $items[] = $this->mapRow($doc->getArrayCopy());
+            $items[] = $this->mapRow($doc->getArrayCopy(), false);
         }
 
         return $items;
@@ -89,11 +67,18 @@ final class ClientReportRepository
             return null;
         }
 
-        return $this->mapRow($doc->getArrayCopy());
+        return $this->mapRow($doc->getArrayCopy(), true);
     }
 
     /**
-     * @param array{client_id:int, title:string, url?:string|null, summary?:string|null, status?:string} $payload
+     * @param array{
+     *   client_id:int,
+     *   title:string,
+     *   url?:string|null,
+     *   summary?:string|null,
+     *   status?:string,
+     *   attachments?: list<array{filename:string, mime_type:string, data:Binary}>
+     * } $payload
      */
     public function create(int $organizationId, array $payload): int
     {
@@ -105,7 +90,10 @@ final class ClientReportRepository
         }
         $publishedAt = $status === 'published' ? $now : null;
 
-        $this->db->selectCollection('client_reports')->insertOne([
+        $attachments = $payload['attachments'] ?? [];
+        $attachments = is_array($attachments) ? $this->normalizeAttachmentsForStorage($attachments) : [];
+
+        $doc = [
             'id' => $id,
             'organization_id' => $organizationId,
             'client_id' => (int) $payload['client_id'],
@@ -116,13 +104,54 @@ final class ClientReportRepository
             'published_at' => $publishedAt,
             'created_at' => $now,
             'updated_at' => $now,
-        ]);
+        ];
+        if ($attachments !== []) {
+            $doc['attachments'] = $attachments;
+        }
+
+        $this->db->selectCollection('client_reports')->insertOne($doc);
 
         return $id;
     }
 
     /**
-     * @param array{title?:string, url?:string|null, summary?:string|null, status?:string, client_id?:int} $patch
+     * @param list<array{filename:string, mime_type:string, data:Binary}> $raw
+     * @return list<array<string, mixed>>
+     */
+    private function normalizeAttachmentsForStorage(array $raw): array
+    {
+        $out = [];
+        $attachmentId = 1;
+        foreach ($raw as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $fn = trim((string) ($item['filename'] ?? ''));
+            $mime = trim((string) ($item['mime_type'] ?? 'application/octet-stream'));
+            $data = $item['data'] ?? null;
+            if ($fn === '' || !$data instanceof Binary) {
+                continue;
+            }
+            $bytes = $data->getData();
+            $len = strlen($bytes);
+            if ($len <= 0 || $len > self::MAX_ATTACHMENT_BYTES) {
+                continue;
+            }
+            $out[] = [
+                'attachment_id' => $attachmentId,
+                'filename' => $fn,
+                'mime_type' => $mime !== '' ? $mime : 'application/octet-stream',
+                'size' => $len,
+                'data' => new Binary($bytes, Binary::TYPE_GENERIC),
+            ];
+            $attachmentId++;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array{title?:string, url?:string|null, summary?:string|null, status?:string, client_id?:int, attachments?: list<array{filename:string, mime_type:string, data:Binary}>|null} $patch
      */
     public function updateForOrganization(int $organizationId, int $id, array $patch): bool
     {
@@ -143,6 +172,15 @@ final class ClientReportRepository
             $st = (string) $patch['status'];
             if ($st === 'published' || $st === 'draft') {
                 $set['status'] = $st;
+            }
+        }
+        if (array_key_exists('attachments', $patch)) {
+            $att = $patch['attachments'];
+            if ($att === null) {
+                $set['attachments'] = null;
+            } elseif (is_array($att)) {
+                $normalized = $this->normalizeAttachmentsForStorage($att);
+                $set['attachments'] = $normalized === [] ? null : $normalized;
             }
         }
 
@@ -188,8 +226,36 @@ final class ClientReportRepository
     /**
      * @param array<string, mixed> $row
      */
-    private function mapRow(array $row): array
+    private function mapRow(array $row, bool $includeAttachmentData): array
     {
+        $attachmentsOut = [];
+        $rawAtt = $row['attachments'] ?? null;
+        if (is_array($rawAtt)) {
+            foreach ($rawAtt as $a) {
+                if (!is_array($a)) {
+                    continue;
+                }
+                $aid = (int) ($a['attachment_id'] ?? 0);
+                $fn = (string) ($a['filename'] ?? '');
+                $mime = (string) ($a['mime_type'] ?? 'application/octet-stream');
+                $size = (int) ($a['size'] ?? 0);
+                $data = $a['data'] ?? null;
+                if ($size <= 0 && $data instanceof Binary) {
+                    $size = strlen($data->getData());
+                }
+                $item = [
+                    'attachment_id' => $aid > 0 ? $aid : null,
+                    'filename' => $fn,
+                    'mime_type' => $mime,
+                    'size' => $size,
+                ];
+                if ($includeAttachmentData && $data instanceof Binary) {
+                    $item['data_base64'] = base64_encode($data->getData());
+                }
+                $attachmentsOut[] = $item;
+            }
+        }
+
         return [
             'id' => (int) ($row['id'] ?? 0),
             'organization_id' => (int) ($row['organization_id'] ?? 0),
@@ -198,6 +264,7 @@ final class ClientReportRepository
             'url' => $row['url'] ?? null,
             'summary' => $row['summary'] ?? null,
             'status' => (string) ($row['status'] ?? 'published'),
+            'attachments' => $attachmentsOut,
             'published_at' => BsonUtil::formatDate($row['published_at'] ?? null),
             'created_at' => BsonUtil::formatDate($row['created_at'] ?? null),
             'updated_at' => BsonUtil::formatDate($row['updated_at'] ?? null),

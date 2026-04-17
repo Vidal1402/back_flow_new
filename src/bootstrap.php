@@ -104,7 +104,7 @@ $router->add('DELETE', '/api/plans/{id}', fn(Request $request, array $params, ar
 
 $router->add('GET', '/api/client-reports', fn(Request $request, array $params, array $context) => $clientReportController->index($context), [$authMiddleware]);
 $router->add('POST', '/api/client-reports', fn(Request $request, array $params, array $context) => $clientReportController->store($request, $context), [$authMiddleware, $adminOnly]);
-$router->add('GET', '/api/client-reports/{id}', fn(Request $request, array $params, array $context) => $clientReportController->show($params, $context), [$authMiddleware, $adminOnly]);
+$router->add('GET', '/api/client-reports/{id}', fn(Request $request, array $params, array $context) => $clientReportController->show($params, $context), [$authMiddleware]);
 $router->add('PATCH', '/api/client-reports/{id}', fn(Request $request, array $params, array $context) => $clientReportController->update($request, $params, $context), [$authMiddleware, $adminOnly]);
 $router->add('DELETE', '/api/client-reports/{id}', fn(Request $request, array $params, array $context) => $clientReportController->destroy($params, $context), [$authMiddleware, $adminOnly]);
 
