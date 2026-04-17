@@ -20,10 +20,77 @@ final class TaskRepository
 
     public function allByOrganization(int $organizationId): array
     {
-        $cursor = $this->db->selectCollection('tasks')->find(
-            ['organization_id' => $organizationId],
-            ['sort' => ['id' => -1]]
-        );
+        return $this->queryTasksMapped(['organization_id' => $organizationId]);
+    }
+
+    /**
+     * Tarefas visíveis no portal para perfil cliente: vinculadas ao cadastro (client_id) ou legadas só com owner_id.
+     */
+    public function allForPortalCliente(int $organizationId, int $userId, ?int $linkedClientId): array
+    {
+        if ($linkedClientId !== null && $linkedClientId > 0) {
+            $filter = [
+                'organization_id' => $organizationId,
+                '$or' => [
+                    ['client_id' => $linkedClientId],
+                    [
+                        '$and' => [
+                            ['owner_id' => $userId],
+                            [
+                                '$or' => [
+                                    ['client_id' => ['$exists' => false]],
+                                    ['client_id' => null],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ];
+        } else {
+            $filter = [
+                'organization_id' => $organizationId,
+                'owner_id' => $userId,
+            ];
+        }
+
+        return $this->queryTasksMapped($filter);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function rawByOrganizationAndId(int $organizationId, int $taskId): ?array
+    {
+        $doc = $this->db->selectCollection('tasks')->findOne([
+            'organization_id' => $organizationId,
+            'id' => $taskId,
+        ]);
+
+        return $doc ? $doc->getArrayCopy() : null;
+    }
+
+    /**
+     * @param array<string, mixed> $raw
+     */
+    public static function portalClienteCanAccessTask(array $raw, int $userId, ?int $linkedClientId): bool
+    {
+        $ownerId = (int) ($raw['owner_id'] ?? 0);
+        $cid = isset($raw['client_id']) && $raw['client_id'] !== null ? (int) $raw['client_id'] : 0;
+
+        if ($linkedClientId !== null && $linkedClientId > 0) {
+            if ($cid === $linkedClientId) {
+                return true;
+            }
+
+            return $cid <= 0 && $ownerId === $userId;
+        }
+
+        return $ownerId === $userId;
+    }
+
+    private function queryTasksMapped(array $filter): array
+    {
+        $cursor = $this->db->selectCollection('tasks')->find($filter, ['sort' => ['id' => -1]]);
 
         $rows = [];
         $ownerIds = [];
@@ -51,6 +118,7 @@ final class TaskRepository
         $items = [];
         foreach ($rows as $row) {
             $ownerId = (int) ($row['owner_id'] ?? 0);
+            $clientId = isset($row['client_id']) && $row['client_id'] !== null ? (int) $row['client_id'] : null;
             $items[] = [
                 'id' => (int) ($row['id'] ?? 0),
                 'title' => (string) ($row['title'] ?? ''),
@@ -60,6 +128,7 @@ final class TaskRepository
                 'status' => (string) ($row['status'] ?? 'solicitacoes'),
                 'owner_id' => $ownerId,
                 'owner_name' => $ownerNamesById[$ownerId] ?? null,
+                'client_id' => $clientId !== null && $clientId > 0 ? $clientId : null,
                 'created_at' => BsonUtil::formatDate($row['created_at'] ?? null),
                 'updated_at' => BsonUtil::formatDate($row['updated_at'] ?? null),
             ];
@@ -72,7 +141,7 @@ final class TaskRepository
     {
         $id = $this->sequence->next('tasks');
         $now = new UTCDateTime();
-        $this->db->selectCollection('tasks')->insertOne([
+        $doc = [
             'id' => $id,
             'title' => (string) $payload['title'],
             'type' => (string) ($payload['type'] ?? 'Outros'),
@@ -83,7 +152,13 @@ final class TaskRepository
             'organization_id' => $organizationId,
             'created_at' => $now,
             'updated_at' => $now,
-        ]);
+        ];
+        $cid = isset($payload['client_id']) ? (int) $payload['client_id'] : 0;
+        if ($cid > 0) {
+            $doc['client_id'] = $cid;
+        }
+
+        $this->db->selectCollection('tasks')->insertOne($doc);
 
         return $id;
     }

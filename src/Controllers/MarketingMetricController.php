@@ -23,10 +23,7 @@ final class MarketingMetricController
         $role = (string) ($context['user']['role'] ?? '');
 
         if ($role === 'cliente') {
-            $uid = (int) ($context['user']['id'] ?? 0);
-            $email = (string) ($context['user']['email'] ?? '');
-            $client = $this->clients->findByUserId($uid)
-                ?? $this->clients->findByOrganizationAndEmail($org, $email);
+            $client = $this->clients->resolvePortalClienteRow($org, $context['user']);
 
             if ($client === null) {
                 Response::json(['data' => []]);
@@ -61,7 +58,23 @@ final class MarketingMetricController
         }
 
         $payload = $this->sanitizePayload($body);
-        $saved = $this->metrics->upsertForClientAndPeriod($org, $clientId, $payload);
+        try {
+            $saved = $this->metrics->upsertForClientAndPeriod($org, $clientId, $payload);
+        } catch (\Throwable $e) {
+            $msg = $e->getMessage();
+            if (str_contains($msg, 'E11000') || str_contains($msg, 'duplicate key')) {
+                Response::json([
+                    'error' => 'conflict',
+                    'message' => 'Conflito no banco (índice único legado em marketing_metrics). Faça deploy da última versão do backend para aplicar a migração de índices e tente de novo.',
+                ], 409);
+                return;
+            }
+            Response::json([
+                'error' => 'server_error',
+                'message' => 'Falha ao salvar métricas no banco de dados.',
+            ], 500);
+            return;
+        }
 
         Response::json([
             'message' => 'Métricas salvas',

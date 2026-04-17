@@ -18,16 +18,19 @@ final class InvoiceRepository
     {
     }
 
-    public function allByOrganization(int $organizationId): array
+    public function allByOrganization(int $organizationId, ?int $onlyClientId = null): array
     {
-        $cursor = $this->db->selectCollection('invoices')->find(
-            ['organization_id' => $organizationId],
-            ['sort' => ['id' => -1]]
-        );
+        $filter = ['organization_id' => $organizationId];
+        if ($onlyClientId !== null && $onlyClientId > 0) {
+            $filter['client_id'] = $onlyClientId;
+        }
+
+        $cursor = $this->db->selectCollection('invoices')->find($filter, ['sort' => ['id' => -1]]);
 
         $items = [];
         foreach ($cursor as $doc) {
             $row = $doc->getArrayCopy();
+            $cid = isset($row['client_id']) && $row['client_id'] !== null ? (int) $row['client_id'] : null;
             $items[] = [
                 'id' => (int) ($row['id'] ?? 0),
                 'invoice_code' => (string) ($row['invoice_code'] ?? ''),
@@ -36,6 +39,7 @@ final class InvoiceRepository
                 'due_date' => (string) ($row['due_date'] ?? ''),
                 'status' => (string) ($row['status'] ?? 'Pendente'),
                 'method' => (string) ($row['method'] ?? 'Pix'),
+                'client_id' => $cid !== null && $cid > 0 ? $cid : null,
                 'paid_at' => BsonUtil::formatDate($row['paid_at'] ?? null),
                 'created_at' => BsonUtil::formatDate($row['created_at'] ?? null),
             ];
@@ -48,7 +52,7 @@ final class InvoiceRepository
     {
         $id = $this->sequence->next('invoices');
         $now = new UTCDateTime();
-        $this->db->selectCollection('invoices')->insertOne([
+        $doc = [
             'id' => $id,
             'invoice_code' => (string) $payload['invoice_code'],
             'period' => (string) $payload['period'],
@@ -59,7 +63,13 @@ final class InvoiceRepository
             'organization_id' => $organizationId,
             'created_at' => $now,
             'updated_at' => $now,
-        ]);
+        ];
+        $cid = isset($payload['client_id']) ? (int) $payload['client_id'] : 0;
+        if ($cid > 0) {
+            $doc['client_id'] = $cid;
+        }
+
+        $this->db->selectCollection('invoices')->insertOne($doc);
 
         return $id;
     }

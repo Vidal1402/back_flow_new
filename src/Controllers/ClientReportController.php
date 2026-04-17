@@ -17,32 +17,25 @@ final class ClientReportController
     ) {
     }
 
-    public function index(Request $request, array $context): void
+    public function index(array $context): void
     {
         $org = (int) $context['user']['organization_id'];
         $role = (string) ($context['user']['role'] ?? '');
-        $limit = (int) ($request->query['limit'] ?? 200);
-        $requestedClientId = (int) ($request->query['client_id'] ?? 0);
 
         if ($role === 'cliente') {
-            $uid = (int) ($context['user']['id'] ?? 0);
-            $email = (string) ($context['user']['email'] ?? '');
-            $client = $this->clients->findByUserId($uid)
-                ?? $this->clients->findByOrganizationAndEmail($org, $email);
+            $client = $this->clients->resolvePortalClienteRow($org, $context['user']);
 
             if ($client === null) {
                 Response::json(['data' => []]);
                 return;
             }
 
-            $items = $this->reports->allByOrganizationAndClient($org, (int) $client['id'], $limit);
+            $items = $this->reports->allByOrganizationAndClient($org, (int) $client['id']);
             Response::json(['data' => $items]);
             return;
         }
 
-        $items = $requestedClientId > 0
-            ? $this->reports->allByOrganizationAndClient($org, $requestedClientId, $limit)
-            : $this->reports->allByOrganization($org, $limit);
+        $items = $this->reports->allByOrganization($org);
         Response::json(['data' => $items]);
     }
 

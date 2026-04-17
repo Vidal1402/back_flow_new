@@ -17,6 +17,13 @@ final class ClientController
     public function index(array $context): void
     {
         $org = (int) $context['user']['organization_id'];
+        $role = (string) ($context['user']['role'] ?? '');
+        if ($role === 'cliente') {
+            $mine = $this->clients->resolvePortalClienteRow($org, $context['user']);
+            Response::json(['data' => $mine !== null ? [$mine] : []]);
+            return;
+        }
+
         $items = $this->clients->allByOrganization($org);
         Response::json(['data' => $items]);
     }
@@ -30,11 +37,7 @@ final class ClientController
         }
 
         $org = (int) $context['user']['organization_id'];
-        $uid = (int) ($context['user']['id'] ?? 0);
-        $email = (string) ($context['user']['email'] ?? '');
-
-        $client = $this->clients->findByUserId($uid)
-            ?? $this->clients->findByOrganizationAndEmail($org, $email);
+        $client = $this->clients->resolvePortalClienteRow($org, $context['user']);
 
         Response::json(['data' => $client]);
     }
@@ -68,6 +71,15 @@ final class ClientController
         if ($row === null) {
             Response::json(['error' => 'not_found', 'message' => 'Cliente não encontrado'], 404);
             return;
+        }
+
+        $role = (string) ($context['user']['role'] ?? '');
+        if ($role === 'cliente') {
+            $mine = $this->clients->resolvePortalClienteRow($org, $context['user']);
+            if ($mine === null || (int) ($mine['id'] ?? 0) !== $id) {
+                Response::json(['error' => 'forbidden', 'message' => 'Acesso restrito ao seu cadastro'], 403);
+                return;
+            }
         }
 
         Response::json(['data' => $row]);

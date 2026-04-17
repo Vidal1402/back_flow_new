@@ -99,6 +99,19 @@ final class ClientRepository
         return $this->mapClientRow($doc->getArrayCopy());
     }
 
+    /**
+     * Cadastro de cliente vinculado ao usuário logado (portal): user_id no Mongo ou mesmo e-mail na org.
+     *
+     * @param array<string, mixed> $user Linha de usuário do AuthMiddleware (id, email, …).
+     */
+    public function resolvePortalClienteRow(int $organizationId, array $user): ?array
+    {
+        $uid = (int) ($user['id'] ?? 0);
+        $email = (string) ($user['email'] ?? '');
+
+        return $this->findByUserId($uid) ?? $this->findByOrganizationAndEmail($organizationId, $email);
+    }
+
     public function bindUserByOrganizationAndEmail(int $organizationId, string $email, int $userId): bool
     {
         $normalizedEmail = mb_strtolower(trim($email));

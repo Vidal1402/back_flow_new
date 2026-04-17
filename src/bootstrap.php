@@ -54,8 +54,8 @@ if ($seedAdminEmail !== '' && $seedAdminPassword !== '' && $users->findByEmail($
 $authController = new AuthController($users, $clients);
 $clientController = new ClientController($clients);
 $clientReportController = new ClientReportController($clientReports, $clients);
-$taskController = new TaskController($tasks);
-$invoiceController = new InvoiceController($invoices);
+$taskController = new TaskController($tasks, $clients);
+$invoiceController = new InvoiceController($invoices, $clients);
 $marketingMetricController = new MarketingMetricController($marketingMetrics, $clients);
 $healthController = new HealthController();
 
