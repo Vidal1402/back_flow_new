@@ -7,6 +7,7 @@ use App\Controllers\ClientController;
 use App\Controllers\ClientReportController;
 use App\Controllers\HealthController;
 use App\Controllers\InvoiceController;
+use App\Controllers\MarketingMetricController;
 use App\Controllers\TaskController;
 use App\Core\Env;
 use App\Core\MongoConnection;
@@ -19,6 +20,7 @@ use App\Middleware\AuthMiddleware;
 use App\Repositories\ClientRepository;
 use App\Repositories\ClientReportRepository;
 use App\Repositories\InvoiceRepository;
+use App\Repositories\MarketingMetricRepository;
 use App\Repositories\TaskRepository;
 use App\Repositories\UserRepository;
 
@@ -27,11 +29,13 @@ Env::load(dirname(__DIR__) . '/.env');
 $db = MongoConnection::database();
 MongoSchema::ensureIndexes($db);
 MongoSchema::ensureClientReportIndexes($db);
+MongoSchema::ensureMarketingMetricIndexes($db);
 $sequence = new Sequence($db);
 
 $users = new UserRepository($db, $sequence);
 $clients = new ClientRepository($db, $sequence);
 $clientReports = new ClientReportRepository($db, $sequence);
+$marketingMetrics = new MarketingMetricRepository($db, $sequence);
 $tasks = new TaskRepository($db, $sequence);
 $invoices = new InvoiceRepository($db, $sequence);
 
@@ -52,6 +56,7 @@ if ($seedAdminEmail !== '' && $seedAdminPassword !== '' && $users->findByEmail($
 $authController = new AuthController($users);
 $clientController = new ClientController($clients);
 $clientReportController = new ClientReportController($clientReports, $clients);
+$marketingMetricController = new MarketingMetricController($marketingMetrics, $clients);
 $taskController = new TaskController($tasks);
 $invoiceController = new InvoiceController($invoices);
 $healthController = new HealthController();
@@ -85,6 +90,13 @@ $router->add('POST', '/api/client-reports', fn(Request $request, array $params, 
 $router->add('GET', '/api/client-reports/{id}', fn(Request $request, array $params, array $context) => $clientReportController->show($params, $context), [$authMiddleware, $adminOnly]);
 $router->add('PATCH', '/api/client-reports/{id}', fn(Request $request, array $params, array $context) => $clientReportController->update($request, $params, $context), [$authMiddleware, $adminOnly]);
 $router->add('DELETE', '/api/client-reports/{id}', fn(Request $request, array $params, array $context) => $clientReportController->destroy($params, $context), [$authMiddleware, $adminOnly]);
+
+$router->add('GET', '/api/marketing-metrics', fn(Request $request, array $params, array $context) => $marketingMetricController->index($request, $context), [$authMiddleware, $adminOnly]);
+$router->add('POST', '/api/marketing-metrics', fn(Request $request, array $params, array $context) => $marketingMetricController->store($request, $context), [$authMiddleware, $adminOnly]);
+$router->add('GET', '/api/marketing-metrics/{id}', fn(Request $request, array $params, array $context) => $marketingMetricController->show($params, $context), [$authMiddleware, $adminOnly]);
+$router->add('PATCH', '/api/marketing-metrics/{id}', fn(Request $request, array $params, array $context) => $marketingMetricController->update($request, $params, $context), [$authMiddleware, $adminOnly]);
+$router->add('PUT', '/api/marketing-metrics/{id}', fn(Request $request, array $params, array $context) => $marketingMetricController->update($request, $params, $context), [$authMiddleware, $adminOnly]);
+$router->add('DELETE', '/api/marketing-metrics/{id}', fn(Request $request, array $params, array $context) => $marketingMetricController->destroy($params, $context), [$authMiddleware, $adminOnly]);
 
 $router->add('GET', '/api/tasks', fn(Request $request, array $params, array $context) => $taskController->index($context), [$authMiddleware]);
 $router->add('POST', '/api/tasks', fn(Request $request, array $params, array $context) => $taskController->store($request, $context), [$authMiddleware]);

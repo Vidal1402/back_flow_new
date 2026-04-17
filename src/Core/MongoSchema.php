@@ -57,4 +57,23 @@ final class MongoSchema
             ['upsert' => true]
         );
     }
+
+    public static function ensureMarketingMetricIndexes(MongoDatabase $db): void
+    {
+        $meta = $db->selectCollection('_meta');
+        $key = 'indexes_marketing_metrics_v1';
+        if ($meta->findOne(['_id' => $key]) !== null) {
+            return;
+        }
+
+        $db->selectCollection('marketing_metrics')->createIndex(['id' => 1], ['unique' => true]);
+        $db->selectCollection('marketing_metrics')->createIndex(['organization_id' => 1, 'client_id' => 1]);
+        $db->selectCollection('marketing_metrics')->createIndex(['organization_id' => 1, 'updated_at' => -1]);
+
+        $meta->updateOne(
+            ['_id' => $key],
+            ['$set' => ['initialized_at' => new UTCDateTime()]],
+            ['upsert' => true]
+        );
+    }
 }
