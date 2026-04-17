@@ -158,18 +158,73 @@ final class ClientRepository
 
     private function mapClientRow(array $row): array
     {
+        $valor = (float) ($row['valor'] ?? 0);
+        if (is_nan($valor) || is_infinite($valor)) {
+            $valor = 0.0;
+        }
+
         return [
             'id' => (int) ($row['id'] ?? 0),
             'name' => (string) ($row['name'] ?? ''),
             'empresa' => (string) ($row['empresa'] ?? ''),
             'email' => (string) ($row['email'] ?? ''),
-            'telefone' => $row['telefone'] ?? null,
+            'telefone' => $this->scalarTelefone($row['telefone'] ?? null),
             'plano' => (string) ($row['plano'] ?? 'Growth'),
-            'valor' => (float) ($row['valor'] ?? 0),
+            'valor' => $valor,
             'status' => (string) ($row['status'] ?? 'ativo'),
             'organization_id' => (int) ($row['organization_id'] ?? 1),
-            'user_id' => isset($row['user_id']) && $row['user_id'] !== null ? (int) $row['user_id'] : null,
+            'user_id' => $this->optionalPositiveInt($row['user_id'] ?? null),
             'created_at' => BsonUtil::formatDate($row['created_at'] ?? null),
         ];
+    }
+
+    private function scalarTelefone(mixed $v): ?string
+    {
+        if ($v === null || $v === '') {
+            return null;
+        }
+        if (is_scalar($v)) {
+            return (string) $v;
+        }
+
+        return null;
+    }
+
+    /**
+     * Evita TypeError / JSON inválido quando user_id no Mongo veio BSON, string ou dado corrompido.
+     */
+    private function optionalPositiveInt(mixed $v): ?int
+    {
+        if ($v === null || $v === '') {
+            return null;
+        }
+        if (is_int($v)) {
+            return $v > 0 ? $v : null;
+        }
+        if (is_float($v)) {
+            $i = (int) round($v);
+
+            return $i > 0 ? $i : null;
+        }
+        if (is_string($v)) {
+            $t = trim($v);
+            if ($t === '' || !is_numeric($t)) {
+                return null;
+            }
+            $i = (int) $t;
+
+            return $i > 0 ? $i : null;
+        }
+        if (is_object($v) && method_exists($v, '__toString')) {
+            $t = trim((string) $v);
+            if ($t === '' || !is_numeric($t)) {
+                return null;
+            }
+            $i = (int) $t;
+
+            return $i > 0 ? $i : null;
+        }
+
+        return null;
     }
 }

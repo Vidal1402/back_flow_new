@@ -35,7 +35,7 @@ final class Request
      */
     private static function normalizePath(string $path): string
     {
-        $path = rawurldecode(str_replace('\\', '/', $path));
+        $path = str_replace('\\', '/', $path);
         $collapsed = preg_replace('#/+#', '/', $path);
         $path = is_string($collapsed) && $collapsed !== '' ? $collapsed : '/';
         if ($path !== '/' && str_ends_with($path, '/')) {
