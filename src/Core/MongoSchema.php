@@ -35,4 +35,26 @@ final class MongoSchema
             ['upsert' => true]
         );
     }
+
+    /**
+     * Índices adicionados após indexes_v1 (deploys que já rodaram o bloco anterior).
+     */
+    public static function ensureClientReportIndexes(MongoDatabase $db): void
+    {
+        $meta = $db->selectCollection('_meta');
+        $key = 'indexes_client_reports_v1';
+        if ($meta->findOne(['_id' => $key]) !== null) {
+            return;
+        }
+
+        $db->selectCollection('client_reports')->createIndex(['id' => 1], ['unique' => true]);
+        $db->selectCollection('client_reports')->createIndex(['organization_id' => 1, 'created_at' => -1]);
+        $db->selectCollection('client_reports')->createIndex(['organization_id' => 1, 'client_id' => 1]);
+
+        $meta->updateOne(
+            ['_id' => $key],
+            ['$set' => ['initialized_at' => new UTCDateTime()]],
+            ['upsert' => true]
+        );
+    }
 }
