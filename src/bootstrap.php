@@ -8,6 +8,7 @@ use App\Controllers\ClientReportController;
 use App\Controllers\HealthController;
 use App\Controllers\InvoiceController;
 use App\Controllers\MarketingMetricController;
+use App\Controllers\PlanController;
 use App\Controllers\TaskController;
 use App\Core\Env;
 use App\Core\MongoConnection;
@@ -21,6 +22,7 @@ use App\Repositories\ClientRepository;
 use App\Repositories\ClientReportRepository;
 use App\Repositories\InvoiceRepository;
 use App\Repositories\MarketingMetricRepository;
+use App\Repositories\PlanRepository;
 use App\Repositories\TaskRepository;
 use App\Repositories\UserRepository;
 
@@ -36,6 +38,7 @@ $tasks = new TaskRepository($db, $sequence);
 $invoices = new InvoiceRepository($db, $sequence);
 $clientReports = new ClientReportRepository($db, $sequence);
 $marketingMetrics = new MarketingMetricRepository($db, $sequence);
+$plans = new PlanRepository($db, $sequence);
 
 // Seed opcional de admin inicial via ambiente (idempotente).
 $seedAdminEmail = mb_strtolower(trim((string) (Env::get('SEED_ADMIN_EMAIL') ?? '')));
@@ -57,6 +60,7 @@ $clientReportController = new ClientReportController($clientReports, $clients);
 $taskController = new TaskController($tasks, $clients);
 $invoiceController = new InvoiceController($invoices, $clients);
 $marketingMetricController = new MarketingMetricController($marketingMetrics, $clients);
+$planController = new PlanController($plans);
 $healthController = new HealthController();
 
 $authMiddleware = new AuthMiddleware($users);
@@ -91,6 +95,12 @@ $router->add('PATCH', '/api/tasks/{id}/status', fn(Request $request, array $para
 $router->add('GET', '/api/invoices', fn(Request $request, array $params, array $context) => $invoiceController->index($context), [$authMiddleware]);
 $router->add('POST', '/api/invoices', fn(Request $request, array $params, array $context) => $invoiceController->store($request, $context), [$authMiddleware, $adminOnly]);
 $router->add('PATCH', '/api/invoices/{id}', fn(Request $request, array $params, array $context) => $invoiceController->update($request, $params, $context), [$authMiddleware, $adminOnly]);
+
+$router->add('GET', '/api/plans', fn(Request $request, array $params, array $context) => $planController->index($context), [$authMiddleware]);
+$router->add('GET', '/api/plans/{id}', fn(Request $request, array $params, array $context) => $planController->show($params, $context), [$authMiddleware]);
+$router->add('POST', '/api/plans', fn(Request $request, array $params, array $context) => $planController->store($request, $context), [$authMiddleware, $adminOnly]);
+$router->add('PATCH', '/api/plans/{id}', fn(Request $request, array $params, array $context) => $planController->update($request, $params, $context), [$authMiddleware, $adminOnly]);
+$router->add('DELETE', '/api/plans/{id}', fn(Request $request, array $params, array $context) => $planController->destroy($params, $context), [$authMiddleware, $adminOnly]);
 
 $router->add('GET', '/api/client-reports', fn(Request $request, array $params, array $context) => $clientReportController->index($context), [$authMiddleware]);
 $router->add('POST', '/api/client-reports', fn(Request $request, array $params, array $context) => $clientReportController->store($request, $context), [$authMiddleware, $adminOnly]);
