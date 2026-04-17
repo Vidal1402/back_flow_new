@@ -15,7 +15,7 @@ final class AuthController
 {
     public function __construct(
         private readonly UserRepository $users,
-        private readonly ?ClientRepository $clients = null
+        private readonly ?ClientRepository $clients = null,
     ) {
     }
 
@@ -55,6 +55,7 @@ final class AuthController
         if (!$user || !password_verify($password, (string) $user['password_hash'])) {
             Response::json(['error' => 'unauthorized', 'message' => 'Credenciais inválidas'], 401);
         }
+
         $this->autoBindClientUser($user);
 
         $appKey = trim((string) Env::get('APP_KEY', ''));
@@ -151,7 +152,7 @@ final class AuthController
     }
 
     /**
-     * Vincula automaticamente o login de cliente ao cadastro em /clients por e-mail.
+     * Vincula o usuário com perfil cliente ao cadastro em clients pelo mesmo e-mail na organização.
      *
      * @param array<string, mixed> $user
      */

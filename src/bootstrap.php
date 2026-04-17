@@ -28,9 +28,6 @@ Env::load(dirname(__DIR__) . '/.env');
 
 $db = MongoConnection::database();
 MongoSchema::ensureIndexes($db);
-MongoSchema::ensureClientReportIndexes($db);
-MongoSchema::ensureMarketingMetricIndexes($db);
-MongoSchema::ensureQueryPerformanceIndexes($db);
 $sequence = new Sequence($db);
 
 $users = new UserRepository($db, $sequence);
@@ -80,7 +77,7 @@ $router->add('POST', '/api/auth/login', fn(Request $request) => $authController-
 $router->add('GET', '/api/auth/me', fn(Request $request, array $params, array $context) => $authController->me($context), [$authMiddleware]);
 $router->add('POST', '/api/admin/users', fn(Request $request, array $params, array $context) => $authController->adminCreateUser($request, $context), [$authMiddleware, $adminOnly]);
 
-$router->add('GET', '/api/clients', fn(Request $request, array $params, array $context) => $clientController->index($request, $context), [$authMiddleware]);
+$router->add('GET', '/api/clients', fn(Request $request, array $params, array $context) => $clientController->index($context), [$authMiddleware]);
 $router->add('GET', '/api/clients/me', fn(Request $request, array $params, array $context) => $clientController->meForPortal($context), [$authMiddleware]);
 $router->add('POST', '/api/clients', fn(Request $request, array $params, array $context) => $clientController->store($request, $context), [$authMiddleware, $adminOnly]);
 $router->add('GET', '/api/clients/{id}', fn(Request $request, array $params, array $context) => $clientController->show($params, $context), [$authMiddleware]);
@@ -94,7 +91,7 @@ $router->add('PATCH', '/api/tasks/{id}/status', fn(Request $request, array $para
 $router->add('GET', '/api/invoices', fn(Request $request, array $params, array $context) => $invoiceController->index($context), [$authMiddleware]);
 $router->add('POST', '/api/invoices', fn(Request $request, array $params, array $context) => $invoiceController->store($request, $context), [$authMiddleware, $adminOnly]);
 
-$router->add('GET', '/api/client-reports', fn(Request $request, array $params, array $context) => $clientReportController->index($request, $context), [$authMiddleware]);
+$router->add('GET', '/api/client-reports', fn(Request $request, array $params, array $context) => $clientReportController->index($context), [$authMiddleware]);
 $router->add('POST', '/api/client-reports', fn(Request $request, array $params, array $context) => $clientReportController->store($request, $context), [$authMiddleware, $adminOnly]);
 $router->add('GET', '/api/client-reports/{id}', fn(Request $request, array $params, array $context) => $clientReportController->show($params, $context), [$authMiddleware, $adminOnly]);
 $router->add('PATCH', '/api/client-reports/{id}', fn(Request $request, array $params, array $context) => $clientReportController->update($request, $params, $context), [$authMiddleware, $adminOnly]);

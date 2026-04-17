@@ -99,8 +99,31 @@ final class ClientRepository
         return $this->mapClientRow($doc->getArrayCopy());
     }
 
+    public function bindUserByOrganizationAndEmail(int $organizationId, string $email, int $userId): bool
+    {
+        $normalizedEmail = mb_strtolower(trim($email));
+        if ($organizationId <= 0 || $userId <= 0 || $normalizedEmail === '') {
+            return false;
+        }
+
+        $result = $this->db->selectCollection('clients')->updateOne(
+            [
+                'organization_id' => $organizationId,
+                'email' => $normalizedEmail,
+            ],
+            [
+                '$set' => [
+                    'user_id' => $userId,
+                    'updated_at' => new UTCDateTime(),
+                ],
+            ]
+        );
+
+        return $result->getMatchedCount() > 0;
+    }
+
     /**
-     * @param array{name?:string, empresa?:string, email?:string, telefone?:string|null, plano?:string, valor?:float|int, status?:string, user_id?:int|null} $payload
+     * @param array{name?:string, empresa?:string, email?:string, telefone?:string|null, plano?:string, valor?:float|int, status?:string} $payload
      */
     public function updateForOrganization(int $organizationId, int $id, array $payload): bool
     {
@@ -125,13 +148,6 @@ final class ClientRepository
         }
         if (array_key_exists('status', $payload)) {
             $set['status'] = (string) $payload['status'];
-        }
-        if (array_key_exists('user_id', $payload)) {
-            $uid = $payload['user_id'];
-            $set['user_id'] = $uid === null || $uid === '' ? null : (int) $uid;
-            if ($set['user_id'] !== null && $set['user_id'] <= 0) {
-                $set['user_id'] = null;
-            }
         }
 
         if ($set === []) {
@@ -158,73 +174,17 @@ final class ClientRepository
 
     private function mapClientRow(array $row): array
     {
-        $valor = (float) ($row['valor'] ?? 0);
-        if (is_nan($valor) || is_infinite($valor)) {
-            $valor = 0.0;
-        }
-
         return [
             'id' => (int) ($row['id'] ?? 0),
             'name' => (string) ($row['name'] ?? ''),
             'empresa' => (string) ($row['empresa'] ?? ''),
             'email' => (string) ($row['email'] ?? ''),
-            'telefone' => $this->scalarTelefone($row['telefone'] ?? null),
+            'telefone' => $row['telefone'] ?? null,
             'plano' => (string) ($row['plano'] ?? 'Growth'),
-            'valor' => $valor,
+            'valor' => (float) ($row['valor'] ?? 0),
             'status' => (string) ($row['status'] ?? 'ativo'),
             'organization_id' => (int) ($row['organization_id'] ?? 1),
-            'user_id' => $this->optionalPositiveInt($row['user_id'] ?? null),
             'created_at' => BsonUtil::formatDate($row['created_at'] ?? null),
         ];
-    }
-
-    private function scalarTelefone(mixed $v): ?string
-    {
-        if ($v === null || $v === '') {
-            return null;
-        }
-        if (is_scalar($v)) {
-            return (string) $v;
-        }
-
-        return null;
-    }
-
-    /**
-     * Evita TypeError / JSON inválido quando user_id no Mongo veio BSON, string ou dado corrompido.
-     */
-    private function optionalPositiveInt(mixed $v): ?int
-    {
-        if ($v === null || $v === '') {
-            return null;
-        }
-        if (is_int($v)) {
-            return $v > 0 ? $v : null;
-        }
-        if (is_float($v)) {
-            $i = (int) round($v);
-
-            return $i > 0 ? $i : null;
-        }
-        if (is_string($v)) {
-            $t = trim($v);
-            if ($t === '' || !is_numeric($t)) {
-                return null;
-            }
-            $i = (int) $t;
-
-            return $i > 0 ? $i : null;
-        }
-        if (is_object($v) && method_exists($v, '__toString')) {
-            $t = trim((string) $v);
-            if ($t === '' || !is_numeric($t)) {
-                return null;
-            }
-            $i = (int) $t;
-
-            return $i > 0 ? $i : null;
-        }
-
-        return null;
     }
 }
