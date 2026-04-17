@@ -19,12 +19,30 @@ final class Request
     {
         $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
         $uri = $_SERVER['REQUEST_URI'] ?? '/';
-        $path = parse_url($uri, PHP_URL_PATH) ?: '/';
+        $path = parse_url($uri, PHP_URL_PATH);
+        $path = is_string($path) && $path !== '' ? $path : '/';
+        $path = self::normalizePath($path);
         $headers = self::getAllHeadersSafe();
         $query = $_GET ?? [];
         $body = self::parseBody($headers);
 
         return new self($method, $path, $headers, $query, $body);
+    }
+
+    /**
+     * Garante o mesmo formato das rotas registradas (ex.: sem barra final, sem //).
+     * Evita 404 "Rota não encontrada" em proxies / clientes que acrescentam "/" ou duplicam segmentos.
+     */
+    private static function normalizePath(string $path): string
+    {
+        $path = rawurldecode(str_replace('\\', '/', $path));
+        $collapsed = preg_replace('#/+#', '/', $path);
+        $path = is_string($collapsed) && $collapsed !== '' ? $collapsed : '/';
+        if ($path !== '/' && str_ends_with($path, '/')) {
+            $path = rtrim($path, '/');
+        }
+
+        return $path;
     }
 
     public function header(string $key): ?string
