@@ -90,6 +90,7 @@ $router->add('PATCH', '/api/tasks/{id}/status', fn(Request $request, array $para
 
 $router->add('GET', '/api/invoices', fn(Request $request, array $params, array $context) => $invoiceController->index($context), [$authMiddleware]);
 $router->add('POST', '/api/invoices', fn(Request $request, array $params, array $context) => $invoiceController->store($request, $context), [$authMiddleware, $adminOnly]);
+$router->add('PATCH', '/api/invoices/{id}', fn(Request $request, array $params, array $context) => $invoiceController->update($request, $params, $context), [$authMiddleware, $adminOnly]);
 
 $router->add('GET', '/api/client-reports', fn(Request $request, array $params, array $context) => $clientReportController->index($context), [$authMiddleware]);
 $router->add('POST', '/api/client-reports', fn(Request $request, array $params, array $context) => $clientReportController->store($request, $context), [$authMiddleware, $adminOnly]);

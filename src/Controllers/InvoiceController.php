@@ -82,4 +82,48 @@ final class InvoiceController
             'invoice_code' => $invoiceCode,
         ], 201);
     }
+
+    public function update(Request $request, array $params, array $context): void
+    {
+        $org = (int) $context['user']['organization_id'];
+        $id = (int) ($params['id'] ?? 0);
+        if ($id <= 0) {
+            Response::json(['error' => 'validation_error', 'message' => 'id inválido'], 422);
+            return;
+        }
+
+        $body = $request->body;
+        if (!is_array($body)) {
+            $body = [];
+        }
+
+        $patch = [];
+        if (array_key_exists('status', $body)) {
+            $patch['status'] = (string) $body['status'];
+        }
+        if (array_key_exists('client_id', $body)) {
+            $v = $body['client_id'];
+            $patch['client_id'] = $v === null || $v === '' ? null : (int) $v;
+            if ($patch['client_id'] !== null && $patch['client_id'] > 0) {
+                if ($this->clients->findByOrganizationAndId($org, $patch['client_id']) === null) {
+                    Response::json(['error' => 'validation_error', 'message' => 'Cliente não encontrado nesta organização'], 422);
+                    return;
+                }
+            }
+        }
+
+        if ($patch === []) {
+            Response::json(['error' => 'validation_error', 'message' => 'Nenhum campo para atualizar'], 422);
+            return;
+        }
+
+        $ok = $this->invoices->updateForOrganization($org, $id, $patch);
+        if (!$ok) {
+            Response::json(['error' => 'not_found', 'message' => 'Fatura não encontrada'], 404);
+            return;
+        }
+
+        $row = $this->invoices->findByOrganizationAndId($org, $id);
+        Response::json(['message' => 'Fatura atualizada', 'data' => $row]);
+    }
 }
