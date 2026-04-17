@@ -14,11 +14,10 @@ final class ClientController
     {
     }
 
-    public function index(Request $request, array $context): void
+    public function index(array $context): void
     {
         $org = (int) $context['user']['organization_id'];
-        $limit = (int) ($request->query['limit'] ?? 300);
-        $items = $this->clients->allByOrganization($org, $limit);
+        $items = $this->clients->allByOrganization($org);
         Response::json(['data' => $items]);
     }
 
@@ -88,10 +87,20 @@ final class ClientController
             $body = [];
         }
 
-        $allowed = ['name', 'empresa', 'email', 'telefone', 'plano', 'valor', 'status'];
+        $allowed = ['name', 'empresa', 'email', 'telefone', 'plano', 'valor', 'status', 'user_id'];
         $patch = [];
         foreach ($allowed as $key) {
             if (!array_key_exists($key, $body)) {
+                continue;
+            }
+            if ($key === 'user_id') {
+                $v = $body['user_id'];
+                if ($v === null || $v === '') {
+                    $patch['user_id'] = null;
+                } else {
+                    $uid = (int) $v;
+                    $patch['user_id'] = $uid > 0 ? $uid : null;
+                }
                 continue;
             }
             if ($key === 'valor') {

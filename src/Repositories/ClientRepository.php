@@ -18,27 +18,11 @@ final class ClientRepository
     {
     }
 
-    public function allByOrganization(int $organizationId, int $limit = 300): array
+    public function allByOrganization(int $organizationId): array
     {
-        $safeLimit = max(1, min($limit, 1000));
         $cursor = $this->db->selectCollection('clients')->find(
             ['organization_id' => $organizationId],
-            [
-                'sort' => ['id' => -1],
-                'limit' => $safeLimit,
-                'projection' => [
-                    'id' => 1,
-                    'name' => 1,
-                    'empresa' => 1,
-                    'email' => 1,
-                    'telefone' => 1,
-                    'plano' => 1,
-                    'valor' => 1,
-                    'status' => 1,
-                    'organization_id' => 1,
-                    'created_at' => 1,
-                ],
-            ]
+            ['sort' => ['id' => -1]]
         );
 
         $items = [];
@@ -115,31 +99,8 @@ final class ClientRepository
         return $this->mapClientRow($doc->getArrayCopy());
     }
 
-    public function bindUserByOrganizationAndEmail(int $organizationId, string $email, int $userId): bool
-    {
-        $normalizedEmail = mb_strtolower(trim($email));
-        if ($organizationId <= 0 || $userId <= 0 || $normalizedEmail === '') {
-            return false;
-        }
-
-        $result = $this->db->selectCollection('clients')->updateOne(
-            [
-                'organization_id' => $organizationId,
-                'email' => $normalizedEmail,
-            ],
-            [
-                '$set' => [
-                    'user_id' => $userId,
-                    'updated_at' => new UTCDateTime(),
-                ],
-            ]
-        );
-
-        return $result->getMatchedCount() > 0;
-    }
-
     /**
-     * @param array{name?:string, empresa?:string, email?:string, telefone?:string|null, plano?:string, valor?:float|int, status?:string} $payload
+     * @param array{name?:string, empresa?:string, email?:string, telefone?:string|null, plano?:string, valor?:float|int, status?:string, user_id?:int|null} $payload
      */
     public function updateForOrganization(int $organizationId, int $id, array $payload): bool
     {
@@ -164,6 +125,13 @@ final class ClientRepository
         }
         if (array_key_exists('status', $payload)) {
             $set['status'] = (string) $payload['status'];
+        }
+        if (array_key_exists('user_id', $payload)) {
+            $uid = $payload['user_id'];
+            $set['user_id'] = $uid === null || $uid === '' ? null : (int) $uid;
+            if ($set['user_id'] !== null && $set['user_id'] <= 0) {
+                $set['user_id'] = null;
+            }
         }
 
         if ($set === []) {
@@ -200,6 +168,7 @@ final class ClientRepository
             'valor' => (float) ($row['valor'] ?? 0),
             'status' => (string) ($row['status'] ?? 'ativo'),
             'organization_id' => (int) ($row['organization_id'] ?? 1),
+            'user_id' => isset($row['user_id']) && $row['user_id'] !== null ? (int) $row['user_id'] : null,
             'created_at' => BsonUtil::formatDate($row['created_at'] ?? null),
         ];
     }
